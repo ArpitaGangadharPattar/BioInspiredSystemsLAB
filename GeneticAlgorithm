@@ -1,0 +1,237 @@
+
+import random
+from collections import defaultdict
+
+DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+
+SLOTS = [
+    "9:00-10:00",
+    "10:00-11:00",
+    "11:15-12:15",
+    "1:00-2:00",
+    "2:00-3:00"
+]
+
+ROOMS = ["Room 101", "Room 102", "Room 103"]
+
+
+CLASSES = [
+    {"subject": "Python", "faculty": "F1", "group": "CSE-A"},
+    {"subject": "DBMS", "faculty": "F2", "group": "CSE-A"},
+    {"subject": "Mathematics", "faculty": "F3", "group": "CSE-A"},
+    {"subject": "Networks", "faculty": "F4", "group": "CSE-A"},
+    {"subject": "AI", "faculty": "F1", "group": "CSE-A"},
+
+    {"subject": "Java", "faculty": "F2", "group": "CSE-B"},
+    {"subject": "OS", "faculty": "F3", "group": "CSE-B"},
+    {"subject": "Statistics", "faculty": "F5", "group": "CSE-B"},
+    {"subject": "DBMS", "faculty": "F2", "group": "CSE-B"},
+    {"subject": "AI", "faculty": "F1", "group": "CSE-B"},
+
+    {"subject": "Python", "faculty": "F1", "group": "CSE-C"},
+    {"subject": "Java", "faculty": "F2", "group": "CSE-C"},
+    {"subject": "Networks", "faculty": "F4", "group": "CSE-C"},
+    {"subject": "OS", "faculty": "F3", "group": "CSE-C"},
+    {"subject": "Statistics", "faculty": "F5", "group": "CSE-C"}
+]
+
+NUM_CLASSES = len(CLASSES)
+NUM_DAYS = len(DAYS)
+NUM_SLOTS = len(SLOTS)
+NUM_ROOMS = len(ROOMS)
+
+
+
+POPULATION_SIZE = 100
+GENERATIONS = 500
+MUTATION_RATE = 0.10
+ELITE_SIZE = 5
+TOURNAMENT_SIZE = 3
+
+
+def create_chromosome():
+    return [
+        (
+            random.randrange(NUM_DAYS),
+            random.randrange(NUM_SLOTS),
+            random.randrange(NUM_ROOMS)
+        )
+        for _ in range(NUM_CLASSES)
+    ]
+
+def create_population():
+    return [
+        create_chromosome()
+        for _ in range(POPULATION_SIZE)
+    ]
+
+
+
+def fitness(chromosome):
+    conflicts = 0
+
+    for i in range(NUM_CLASSES):
+        day1, slot1, room1 = chromosome[i]
+        class1 = CLASSES[i]
+
+        for j in range(i + 1, NUM_CLASSES):
+            day2, slot2, room2 = chromosome[j]
+            class2 = CLASSES[j]
+
+            if day1 == day2 and slot1 == slot2:
+
+                if room1 == room2:
+                    conflicts += 1
+
+                if class1["faculty"] == class2["faculty"]:
+                    conflicts += 1
+
+                if class1["group"] == class2["group"]:
+                    conflicts += 1
+
+    
+    return 1 / (1 + conflicts)
+
+
+
+def selection(population):
+    contestants = random.sample(
+        population,
+        TOURNAMENT_SIZE
+    )
+
+    return max(contestants, key=fitness)
+
+
+
+def crossover(parent1, parent2):
+    child = []
+
+    for i in range(NUM_CLASSES):
+        if random.random() < 0.5:
+            child.append(parent1[i])
+        else:
+            child.append(parent2[i])
+
+    return child
+
+
+def mutation(chromosome):
+    for i in range(NUM_CLASSES):
+        if random.random() < MUTATION_RATE:
+            chromosome[i] = (
+                random.randrange(NUM_DAYS),
+                random.randrange(NUM_SLOTS),
+                random.randrange(NUM_ROOMS)
+            )
+
+    return chromosome
+
+
+
+def genetic_algorithm():
+    population = create_population()
+    best_solution = None
+    best_fitness = 0
+
+    for generation in range(GENERATIONS):
+
+        population.sort(key=fitness, reverse=True)
+
+        current_best = population[0]
+        current_fitness = fitness(current_best)
+
+        if current_fitness > best_fitness:
+            best_solution = current_best[:]
+            best_fitness = current_fitness
+
+        if best_fitness == 1:
+            print("Conflict-free timetable found!")
+            print("Generation:", generation)
+            break
+
+        new_population = [
+            chromosome[:]
+            for chromosome in population[:ELITE_SIZE]
+        ]
+
+        while len(new_population) < POPULATION_SIZE:
+            parent1 = selection(population)
+            parent2 = selection(population)
+
+            child = crossover(parent1, parent2)
+            child = mutation(child)
+
+            new_population.append(child)
+
+        population = new_population
+
+        if generation % 50 == 0:
+            print(
+                f"Generation {generation}: "
+                f"Best fitness = {best_fitness:.4f}"
+            )
+
+    return best_solution, best_fitness
+
+
+def display_timetable(solution):
+    timetable = defaultdict(list)
+
+    for i, assignment in enumerate(solution):
+        day, slot, room = assignment
+        class_info = CLASSES[i]
+
+        timetable[(day, slot)].append(
+            (class_info["group"],
+             class_info["subject"],
+             class_info["faculty"],
+             ROOMS[room])
+        )
+
+    for group in sorted(set(c["group"] for c in CLASSES)):
+        print("\n" + "=" * 65)
+        print("TIMETABLE FOR", group)
+        print("=" * 65)
+
+        print(f"{'Day':<12} {'Time':<15} "
+              f"{'Subject':<15} {'Faculty':<10} {'Room'}")
+        print("-" * 65)
+
+        for day in range(NUM_DAYS):
+            for slot in range(NUM_SLOTS):
+                found = False
+
+                for entry in timetable[(day, slot)]:
+                    if entry[0] == group:
+                        _, subject, faculty, room = entry
+
+                        print(
+                            f"{DAYS[day]:<12} "
+                            f"{SLOTS[slot]:<15} "
+                            f"{subject:<15} "
+                            f"{faculty:<10} {room}"
+                        )
+                        found = True
+
+                if not found:
+                    print(
+                        f"{DAYS[day]:<12} "
+                        f"{SLOTS[slot]:<15} "
+                        f"{'Free':<15}"
+                    )
+
+
+if __name__ == "__main__":
+    best_solution, best_fitness = genetic_algorithm()
+
+    print("\nFinal Fitness:", best_fitness)
+
+    if best_solution is not None:
+        print("\nFINAL UNIVERSITY TIMETABLE")
+        display_timetable(best_solution)
+
+        if best_fitness == 1:
+            print("\nAll hard constraints satisfied.")
+        else:
+            print("\nSome scheduling conflicts remain.")
